@@ -1,9 +1,5 @@
 <template>
-  <select
-    id="symbol"
-    v-model="model.symbol"
-    name="symbol"
-  >
+  <select id="symbol" v-model="model.symbol" name="symbol">
     <option
       v-for="symbol in symbolOpts"
       :key="symbol.value"

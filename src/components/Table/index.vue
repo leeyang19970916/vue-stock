@@ -9,7 +9,7 @@ defineOptions({
 interface Col {
   label: string;
   key: Exclude<keyof StockRow, "id" | "updatedAt">;
-  sortable: boolean;
+  sortable: boolean; //有無排序功能，只有trend不會有
 }
 
 type SortableColKey = Exclude<Col["key"], "trend">;
@@ -35,23 +35,26 @@ const cols: Col[] = [
   { label: "Volume", key: "volume", sortable: true },
   { label: "Trend", key: "trend", sortable: false },
 ];
-const rows = ref<StockRow[]>(MOCK_ROWS.map((row) => ({ ...row })));
+const rows = ref<StockRow[]>([...MOCK_ROWS]);
+
 const sortState = ref<SortState>({
+  //?
   key: "symbol",
   direction: "asc",
 });
+
 const updatedRowIds = ref<Set<StockRow["id"]>>(new Set());
 let tickTimer: TimeoutId | undefined;
 
 const filteredRows = computed(() => {
-  if (props.searchForm.symbol === undefined) {
+  if (!props.searchForm.symbol) {
     return rows.value;
   }
-
-  return rows.value.filter((row) => row.symbol === props.searchForm.symbol);
+  return rows.value.filter(({ symbol }) => symbol === props.searchForm.symbol);
 });
 
 const sortedRows = computed(() => {
+  // ??
   const directionValue = sortState.value.direction === "asc" ? 1 : -1;
 
   return [...filteredRows.value].sort((a, b) => {

@@ -6,41 +6,39 @@
 
 本題必須使用 **mock 資料**，不需使用後端或外部 API。你需要在前端模擬即時行情更新，並以可排序、可篩選的資料表呈現。
 
-
-
 ## 核心需求
 
 ### 技術範圍
+
 - 框架：Vue 3
 - 語言：JavaScript 或 TypeScript
 - 資料來源：僅前端記憶體 mock 資料
 - 執行方式：可直接在瀏覽器開啟（單一 HTML 可）
 
 ### 互動功能
+
 - 即時更新功能
 - 股票篩選功能
-- Trend趨勢線圖呈現
+- Trend 趨勢線圖呈現
 - 欄位可點擊排序
-
-
 
 ## AI 使用建議
 
 本題不限制使用 AI 工具（例如 GitHub Copilot、ChatGPT、Claude 等）。
 
 但若你有採用 AI，請：
+
 1. **在對應程式碼處加上註解**，例如 `// [AI 輔助]`
 2. **簡短說明為何使用**，例如：用來查詢 API 用法、生成樣板程式碼、或解決某個具體問題
 
 範例：
+
 ```js
 // [AI 輔助] 用 AI 協助生成 SVG 座標的 min/max 正規化邏輯
 const sparklinePoints = (trend) => { ... };
 ```
 
 使用 AI 不會扣分。我們在意的是你的判斷力：**知道何時以及如何善用 AI，本身就是一種重要能力**。重點是你能理解並掌握自己提交的程式碼。
-
-
 
 ## 評估重點
 
@@ -50,11 +48,12 @@ const sparklinePoints = (trend) => { ... };
 - 資料&狀態是否正確顯示
 - 程式邏輯與結構
 
-
 ## 撰寫格式說明
 
 ### 基本欄位
+
 請顯示以下欄位：
+
 - `Symbol`
 - `Price`
 - `Change`
@@ -63,12 +62,14 @@ const sparklinePoints = (trend) => { ... };
 - `Trend`（即時線條走勢圖）
 
 ### 格式規則
+
 - Price：小數固定 2 位，例如 `182.34`
 - Change：需顯示正負號與小數 2 位，例如 `+1.24`、`-0.87`
 - % Change：需顯示正負號與小數 2 位百分比，例如 `+0.68%`
 - Volume：需加千分位逗號，例如 `12,304,990`
 
 ### 即時模擬規則
+
 - 初始至少 12 筆股票資料
 - 每 `300ms` 到 `1000ms` 更新一次
 - 每個 tick 隨機更新 `1-4` 列
@@ -81,6 +82,7 @@ const sparklinePoints = (trend) => { ... };
   - `updatedAt`
 
 ### 視覺規則
+
 - 正值顏色：`#00b15d`
 - 負值顏色：`#FF5B5A`
 - 0 值顏色：`#F0F4F8`
@@ -89,14 +91,12 @@ const sparklinePoints = (trend) => { ... };
 - 趨勢圖需可反映最近價格變化，且會隨 tick 即時更新
 
 ### 主題色
+
 - 背景：`#131B29`
 - 預設文字：`#F0F4F8`
 - 表頭文字：`#8698aa`
 
-
-
-
-## Mock 資料
+## Mock 資料走
 
 資料結構：
 
@@ -115,7 +115,7 @@ type StockRow = {
 
 建議初始資料：
 
-```ts
+````ts
 const MOCK_SYMBOLS = [
   'AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'GOOGL',
   'META', 'AMD', 'NFLX', 'AVGO', 'ORCL', 'CRM'
@@ -136,4 +136,4 @@ const MOCK_ROWS = [
   { id: 12, symbol: 'CRM',  price: 302.96, change: 0, changePct: 0, volume: 2033550,  trend: [302.96], updatedAt: Date.now() },
 ];
 ```ㄋ
-
+````

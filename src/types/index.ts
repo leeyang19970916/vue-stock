@@ -19,11 +19,3 @@ export interface StockRow {
   trend: number[];
   updatedAt: number;
 }
-
-export type TableCol =
-  | `Symbol`
-  | `Price`
-  | `Change`
-  | `% Change`
-  | `Volume`
-  | `Trend`;

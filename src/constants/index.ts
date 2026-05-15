@@ -1,4 +1,4 @@
-import type { StockRow } from "@/type";
+import type { StockRow } from "@/types";
 
 const initialUpdatedAt = Date.now();
 

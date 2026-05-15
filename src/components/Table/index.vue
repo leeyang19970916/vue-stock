@@ -104,7 +104,10 @@ const randomInt = (min: number, max: number): number =>
 const randomFloat = (min: number, max: number): number =>
   Math.random() * (max - min) + min;
 
-const getRandomRowIndexes = (rowCount: number, updateCount: number): Set<number> => {
+const getRandomRowIndexes = (
+  rowCount: number,
+  updateCount: number
+): Set<number> => {
   const indexes = new Set<number>();
 
   while (indexes.size < updateCount && indexes.size < rowCount) {
@@ -191,7 +194,56 @@ const getValueToneClass = (row: StockRow, colKey: Col["key"]): string => {
   return "is-neutral";
 };
 
-const formatCell = (row: StockRow, colKey: Col["key"]): string => {
+const getTrendToneClass = (row: StockRow): string => {
+  if (row.change > 0) {
+    return "is-positive";
+  }
+
+  if (row.change < 0) {
+    return "is-negative";
+  }
+
+  return "is-neutral";
+};
+
+// [AI 輔助] 用 AI 協助整理 SVG sparkline 的 min/max 正規化與單點 fallback。
+const getSparklinePoints = (trend: number[]): string => {
+  const width = 120;
+  const height = 32;
+  const padding = 3;
+
+  if (trend.length === 0) {
+    return "";
+  }
+
+  if (trend.length === 1) {
+    const y = (height / 2).toFixed(2);
+    const startX = padding.toFixed(2);
+    const endX = (width - padding).toFixed(2);
+
+    return `${startX},${y} ${endX},${y}`;
+  }
+
+  const min = Math.min(...trend);
+  const max = Math.max(...trend);
+  const range = max - min || 1;
+  const xStep = (width - padding * 2) / (trend.length - 1);
+
+  return trend
+    .map((value, index) => {
+      const x = padding + index * xStep;
+      const normalized = (value - min) / range;
+      const y = height - padding - normalized * (height - padding * 2);
+
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(" ");
+};
+
+const formatCell = (
+  row: StockRow,
+  colKey: Exclude<Col["key"], "trend">
+): string => {
   switch (colKey) {
     case "price":
       return row.price.toFixed(2);
@@ -205,9 +257,6 @@ const formatCell = (row: StockRow, colKey: Col["key"]): string => {
     case "volume":
       return row.volume.toLocaleString();
 
-    case "trend":
-      return row.trend.join(", ");
-
     case "symbol":
       return row.symbol;
   }
@@ -218,11 +267,7 @@ const formatCell = (row: StockRow, colKey: Col["key"]): string => {
   <table>
     <thead>
       <tr>
-        <th
-          v-for="col in cols"
-          :key="col.key"
-          scope="col"
-        >
+        <th v-for="col in cols" :key="col.key" scope="col">
           <button
             v-if="col.sortable"
             type="button"
@@ -248,7 +293,23 @@ const formatCell = (row: StockRow, colKey: Col["key"]): string => {
           :class="getValueToneClass(row, col.key)"
         >
           <template v-if="col.key === 'trend'">
-            {{ formatCell(row, col.key) }}
+            <svg
+              class="sparkline"
+              :class="getTrendToneClass(row)"
+              viewBox="0 0 120 32"
+              role="img"
+              :aria-label="`${row.symbol} recent price trend`"
+            >
+              <polyline
+                :points="getSparklinePoints(row.trend)"
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                vector-effect="non-scaling-stroke"
+              />
+            </svg>
           </template>
           <template v-else>
             {{ formatCell(row, col.key) }}
@@ -301,10 +362,19 @@ td {
   font-variant-numeric: tabular-nums;
 }
 
+td:last-child {
+  width: 152px;
+}
+
+.sparkline {
+  display: block;
+  width: 120px;
+  height: 32px;
+  margin-left: auto;
+}
+
 tbody tr {
-  transition:
-    background-color 600ms ease,
-    color 160ms ease;
+  transition: background-color 600ms ease, color 160ms ease;
 }
 
 tbody tr.is-updated {

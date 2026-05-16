@@ -1,6 +1,12 @@
 import type { StockRow } from "@/types";
+import type { SortState } from "@/types/table";
 
 const initialUpdatedAt = Date.now();
+
+export const SORT_STATE: SortState = {
+  key: "symbol",
+  direction: "asc",
+};
 
 export const MOCK_SYMBOLS = [
   "AAPL",

@@ -1,33 +1,21 @@
 <script setup lang="ts">
-import { MOCK_ROWS } from "@/constants";
+import { MOCK_ROWS, SORT_STATE } from "@/constants";
 import type { StockRow } from "@/types";
 import type { SearchForm } from "@/types/filter";
+import { getLineStyle } from "@/utils/getLineStyle";
 import { computed, onMounted, onUnmounted, ref } from "vue";
-defineOptions({
-  name: "StockTable",
-});
-interface Col {
-  label: string;
-  key: Exclude<keyof StockRow, "id" | "updatedAt">;
-  sortable: boolean; //有無排序功能，只有trend不會有
-}
-
-type SortableColKey = Exclude<Col["key"], "trend">;
-
-type SortDirection = "asc" | "desc";
-
-type TimeoutId = number;
-
-interface SortState {
-  key: SortableColKey;
-  direction: SortDirection;
-}
+import TheadLabel from "@/components/Table/TheadLabel.vue";
+import type { Col, SortState } from "@/types/table";
 
 const props = defineProps<{
   searchForm: SearchForm;
 }>();
 
-const cols: Col[] = [
+defineOptions({
+  name: "StockTable",
+});
+
+const COLS: Col[] = [
   { label: "Symbol", key: "symbol", sortable: true },
   { label: "Price", key: "price", sortable: true },
   { label: "Change", key: "change", sortable: true },
@@ -37,14 +25,10 @@ const cols: Col[] = [
 ];
 const rows = ref<StockRow[]>([...MOCK_ROWS]);
 
-const sortState = ref<SortState>({
-  //?
-  key: "symbol",
-  direction: "asc",
-});
+const sortState = ref<SortState>(SORT_STATE);
 
 const updatedRowIds = ref<Set<StockRow["id"]>>(new Set());
-let tickTimer: TimeoutId | undefined;
+let tickTimer: number | undefined;
 
 const filteredRows = computed(() => {
   if (!props.searchForm.symbol) {
@@ -55,51 +39,25 @@ const filteredRows = computed(() => {
 
 const sortedRows = computed(() => {
   // ??
-  const directionValue = sortState.value.direction === "asc" ? 1 : -1;
+  return 0;
 
-  return [...filteredRows.value].sort((a, b) => {
-    const aValue = a[sortState.value.key];
-    const bValue = b[sortState.value.key];
+  // const directionValue = sortState.value.direction === "asc" ? 1 : -1;
 
-    if (typeof aValue === "string" && typeof bValue === "string") {
-      return aValue.localeCompare(bValue) * directionValue;
-    }
+  // return [...filteredRows.value].sort((a, b) => {
+  //   const aValue = a[sortState.value.key];
+  //   const bValue = b[sortState.value.key];
 
-    if (typeof aValue === "number" && typeof bValue === "number") {
-      return (aValue - bValue) * directionValue;
-    }
+  //   if (typeof aValue === "string" && typeof bValue === "string") {
+  //     return aValue.localeCompare(bValue) * directionValue;
+  //   }
 
-    return 0;
-  });
+  //   if (typeof aValue === "number" && typeof bValue === "number") {
+  //     return (aValue - bValue) * directionValue;
+  //   }
+
+  //   return 0;
+  // });
 });
-
-const isSortableColKey = (key: Col["key"]): key is SortableColKey =>
-  key !== "trend";
-
-const updateSort = (key: Col["key"]) => {
-  if (!isSortableColKey(key)) {
-    return;
-  }
-
-  if (sortState.value.key === key) {
-    sortState.value.direction =
-      sortState.value.direction === "asc" ? "desc" : "asc";
-    return;
-  }
-
-  sortState.value = {
-    key,
-    direction: "asc",
-  };
-};
-
-const getSortLabel = (key: Col["key"]): string => {
-  if (!isSortableColKey(key) || sortState.value.key !== key) {
-    return "";
-  }
-
-  return sortState.value.direction === "asc" ? "↑" : "↓";
-};
 
 const randomInt = (min: number, max: number): number =>
   Math.floor(Math.random() * (max - min + 1)) + min;
@@ -180,33 +138,8 @@ onUnmounted(() => {
 });
 
 const getValueToneClass = (row: StockRow, colKey: Col["key"]): string => {
-  if (colKey !== "change" && colKey !== "changePct") {
-    return "";
-  }
-
-  const value = row[colKey];
-
-  if (value > 0) {
-    return "is-positive";
-  }
-
-  if (value < 0) {
-    return "is-negative";
-  }
-
-  return "is-neutral";
-};
-
-const getTrendToneClass = (row: StockRow): string => {
-  if (row.change > 0) {
-    return "is-positive";
-  }
-
-  if (row.change < 0) {
-    return "is-negative";
-  }
-
-  return "is-neutral";
+  if (colKey !== "change" && colKey !== "changePct") return "";
+  return getLineStyle(row[colKey]);
 };
 
 // [AI 輔助] 用 AI 協助整理 SVG sparkline 的 min/max 正規化與單點 fallback。
@@ -267,38 +200,30 @@ const formatCell = (
 </script>
 
 <template>
+  {{ sortState }}
   <table>
     <thead>
       <tr>
-        <th v-for="col in cols" :key="col.key" scope="col">
-          <button
-            v-if="col.sortable"
-            type="button"
-            @click="updateSort(col.key)"
-          >
-            {{ col.label }} {{ getSortLabel(col.key) }}
-          </button>
-          <template v-else>
-            {{ col.label }}
-          </template>
+        <th v-for="col in COLS" :key="col.key" scope="col">
+          <TheadLabel :col v-model="sortState" />
         </th>
       </tr>
     </thead>
     <tbody>
       <tr
-        v-for="row in sortedRows"
+        v-for="row in rows"
         :key="row.id"
         :class="{ 'is-updated': updatedRowIds.has(row.id) }"
       >
         <td
-          v-for="col in cols"
+          v-for="col in COLS"
           :key="col.key"
           :class="getValueToneClass(row, col.key)"
         >
           <template v-if="col.key === 'trend'">
             <svg
               class="sparkline"
-              :class="getTrendToneClass(row)"
+              :class="getLineStyle(row.change)"
               viewBox="0 0 120 32"
               role="img"
               :aria-label="`${row.symbol} recent price trend`"

@@ -123,10 +123,13 @@ const runTick = () => {
  *   打造出一個無限循環且間隔隨機的引擎，模擬股市時快時慢的跳動節奏。
  */
 const scheduleNextTick = () => {
-  tickTimer = window.setTimeout(() => {
-    runTick();
-    scheduleNextTick();
-  }, randomInt(300, 1_000));
+  tickTimer = window.setTimeout(
+    () => {
+      runTick();
+      scheduleNextTick();
+    },
+    randomInt(300, 1_000),
+  );
 };
 
 onMounted(() => {
@@ -150,7 +153,7 @@ const getValueToneClass = (row: StockRow, colKey: Col["key"]): string => {
 
 const formatCell = (
   row: StockRow,
-  colKey: Exclude<Col["key"], "trend">
+  colKey: Exclude<Col["key"], "trend">,
 ): string => {
   switch (colKey) {
     case "price":
@@ -264,7 +267,6 @@ th {
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0;
-  text-transform: uppercase;
 }
 
 td {
@@ -284,7 +286,9 @@ td:last-child {
 }
 
 tbody tr {
-  transition: background-color 600ms ease, color 160ms ease;
+  transition:
+    background-color 600ms ease,
+    color 160ms ease;
 }
 
 tbody tr.is-updated {

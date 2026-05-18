@@ -25,9 +25,7 @@ const isSortableColKey = (key: Col["key"]): key is SortState["key"] =>
   key !== "trend";
 
 const updateSort = () => {
-  if (!isSortableColKey(key)) {
-    return;
-  }
+  if (!isSortableColKey(key)) return;
 
   if (model.value.key === key) {
     model.value.direction = model.value.direction === "asc" ? "desc" : "asc";
@@ -36,7 +34,7 @@ const updateSort = () => {
 
   model.value = {
     key,
-    direction: "asc",
+    direction: SORT_STATE.direction,
   };
 };
 </script>

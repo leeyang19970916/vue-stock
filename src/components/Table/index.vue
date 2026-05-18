@@ -6,6 +6,8 @@ import { getLineStyle } from "@/utils/getLineStyle";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import TheadLabel from "@/components/Table/TheadLabel.vue";
 import type { Col, SortState } from "@/types/table";
+import Sparkline from "./Sparkline.vue";
+import { randomFloat, randomInt } from "@/utils/random";
 
 const props = defineProps<{
   searchForm: SearchForm;
@@ -28,7 +30,7 @@ const rows = ref<StockRow[]>([...MOCK_ROWS]);
 const sortState = ref<SortState>(SORT_STATE);
 
 const updatedRowIds = ref<Set<StockRow["id"]>>(new Set());
-let tickTimer: number | undefined;
+let tickTimer: number | undefined = undefined;
 
 const filteredRows = computed(() => {
   if (!props.searchForm.symbol) {
@@ -38,32 +40,24 @@ const filteredRows = computed(() => {
 });
 
 const sortedRows = computed(() => {
-  // ??
-  return 0;
+  const { direction, key } = sortState.value;
+  const directionValue = direction === "asc" ? 1 : -1;
+  const result = [...filteredRows.value].sort((a, b) => {
+    const aValue = a[key];
+    const bValue = b[key];
+    if (typeof aValue === "string" && typeof bValue === "string") {
+      return aValue.localeCompare(bValue) * directionValue;
+    }
 
-  // const directionValue = sortState.value.direction === "asc" ? 1 : -1;
+    if (typeof aValue === "number" && typeof bValue === "number") {
+      return (aValue - bValue) * directionValue;
+    }
 
-  // return [...filteredRows.value].sort((a, b) => {
-  //   const aValue = a[sortState.value.key];
-  //   const bValue = b[sortState.value.key];
+    return 0;
+  });
 
-  //   if (typeof aValue === "string" && typeof bValue === "string") {
-  //     return aValue.localeCompare(bValue) * directionValue;
-  //   }
-
-  //   if (typeof aValue === "number" && typeof bValue === "number") {
-  //     return (aValue - bValue) * directionValue;
-  //   }
-
-  //   return 0;
-  // });
+  return result;
 });
-
-const randomInt = (min: number, max: number): number =>
-  Math.floor(Math.random() * (max - min + 1)) + min;
-
-const randomFloat = (min: number, max: number): number =>
-  Math.random() * (max - min) + min;
 
 const getRandomRowIndexes = (
   rowCount: number,
@@ -142,40 +136,6 @@ const getValueToneClass = (row: StockRow, colKey: Col["key"]): string => {
   return getLineStyle(row[colKey]);
 };
 
-// [AI 輔助] 用 AI 協助整理 SVG sparkline 的 min/max 正規化與單點 fallback。
-const getSparklinePoints = (trend: number[]): string => {
-  const width = 120;
-  const height = 32;
-  const padding = 3;
-
-  if (trend.length === 0) {
-    return "";
-  }
-
-  if (trend.length === 1) {
-    const y = (height / 2).toFixed(2);
-    const startX = padding.toFixed(2);
-    const endX = (width - padding).toFixed(2);
-
-    return `${startX},${y} ${endX},${y}`;
-  }
-
-  const min = Math.min(...trend);
-  const max = Math.max(...trend);
-  const range = max - min || 1;
-  const xStep = (width - padding * 2) / (trend.length - 1);
-
-  return trend
-    .map((value, index) => {
-      const x = padding + index * xStep;
-      const normalized = (value - min) / range;
-      const y = height - padding - normalized * (height - padding * 2);
-
-      return `${x.toFixed(2)},${y.toFixed(2)}`;
-    })
-    .join(" ");
-};
-
 const formatCell = (
   row: StockRow,
   colKey: Exclude<Col["key"], "trend">
@@ -200,7 +160,6 @@ const formatCell = (
 </script>
 
 <template>
-  {{ sortState }}
   <table>
     <thead>
       <tr>
@@ -211,7 +170,7 @@ const formatCell = (
     </thead>
     <tbody>
       <tr
-        v-for="row in rows"
+        v-for="row in sortedRows"
         :key="row.id"
         :class="{ 'is-updated': updatedRowIds.has(row.id) }"
       >
@@ -221,23 +180,7 @@ const formatCell = (
           :class="getValueToneClass(row, col.key)"
         >
           <template v-if="col.key === 'trend'">
-            <svg
-              class="sparkline"
-              :class="getLineStyle(row.change)"
-              viewBox="0 0 120 32"
-              role="img"
-              :aria-label="`${row.symbol} recent price trend`"
-            >
-              <polyline
-                :points="getSparklinePoints(row.trend)"
-                fill="none"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                vector-effect="non-scaling-stroke"
-              />
-            </svg>
+            <Sparkline :row />
           </template>
           <template v-else>
             {{ formatCell(row, col.key) }}

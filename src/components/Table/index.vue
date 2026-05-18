@@ -4,10 +4,10 @@ import type { StockRow } from "@/types";
 import type { SearchForm } from "@/types/filter";
 import { getLineStyle } from "@/utils/getLineStyle";
 import { computed, onMounted, onUnmounted, ref } from "vue";
+import { randomFloat, randomInt, getRandomRowIndexes } from "@/utils/random";
 import TheadLabel from "@/components/Table/TheadLabel.vue";
 import type { Col, SortState } from "@/types/table";
 import Sparkline from "./Sparkline.vue";
-import { randomFloat, randomInt } from "@/utils/random";
 
 const props = defineProps<{
   searchForm: SearchForm;
@@ -25,13 +25,18 @@ const COLS: Col[] = [
   { label: "Volume", key: "volume", sortable: true },
   { label: "Trend", key: "trend", sortable: false },
 ];
-const rows = ref<StockRow[]>([...MOCK_ROWS]);
 
+const rows = ref<StockRow[]>([...MOCK_ROWS]);
 const sortState = ref<SortState>(SORT_STATE);
 
-const updatedRowIds = ref<Set<StockRow["id"]>>(new Set());
+// --- 狀態與計時器管理 ---
+// 使用 ref(Set) 儲存目前正在高亮的股票 ID
+const updatedRowIds = ref(new Set<StockRow["id"]>(new Set()));
+// 使用原生的 Map 在背景追蹤每隻股票專屬的倒數計時器 (不需要響應式，效能更好)
+const rowClearTimers = new Map<StockRow["id"], number>(new Map());
 let tickTimer: number | undefined = undefined;
 
+// --- 搜尋與排序邏輯 ---
 const filteredRows = computed(() => {
   if (!props.searchForm.symbol) {
     return rows.value;
@@ -59,61 +64,64 @@ const sortedRows = computed(() => {
   return result;
 });
 
-const getRandomRowIndexes = (
-  rowCount: number,
-  updateCount: number
-): Set<number> => {
-  const indexes = new Set<number>();
-
-  while (indexes.size < updateCount && indexes.size < rowCount) {
-    indexes.add(randomInt(0, rowCount - 1));
-  }
-
-  return indexes;
-};
-
-const updateStockRow = (row: StockRow): StockRow => {
-  const previousPrice = row.price;
-  const priceDelta = randomFloat(-1.5, 1.5);
-  const nextPrice = Math.max(0.01, previousPrice + priceDelta);
-  const change = nextPrice - previousPrice;
-  const changePct = (change / previousPrice) * 100;
-  const trend = [...row.trend, nextPrice].slice(-20);
-
-  return {
-    ...row,
-    price: nextPrice,
-    change,
-    changePct,
-    volume: row.volume + randomInt(1_000, 80_000),
-    trend,
-    updatedAt: Date.now(),
-  };
-};
-
+/**
+ * [AI輔助] 執行單次股票資料更新跳動與 UI 高亮控制
+ *
+ * - 做了什麼事情：
+ *   1. 隨機抽出要更新的目標索引 (targetIndexes)。
+ *   2. 精準只針對抽到的索引進行資料覆蓋 (不再拷貝整個陣列)，減少效能損耗。
+ *   3. 實作 Timer Reset 機制：將更新的股票 ID 加進 `updatedRowIds`，
+ *      若股票仍在發亮，會先拆除舊炸彈 (clearTimeout)，重新設定 600ms 的新炸彈，延長發亮時間。
+ * - 完成了什麼事情：
+ *   解決了資料更新時的陣列效能瓶頸，並確保每支股票的高亮動畫彼此獨立、互不干擾。
+ */
 const runTick = () => {
   const updateCount = randomInt(1, 4);
   const targetIndexes = getRandomRowIndexes(rows.value.length, updateCount);
-  const nextUpdatedRowIds = new Set<StockRow["id"]>();
 
-  rows.value = rows.value.map((row, index) => {
-    if (!targetIndexes.has(index)) {
-      return row;
-    }
+  // 暫存這一次 Tick 中被抽到更新的股票 ID
+  const currentTickUpdatedIds: StockRow["id"][] = [];
 
-    const nextRow = updateStockRow(row);
-    nextUpdatedRowIds.add(nextRow.id);
+  // 精準打擊：只針對抽到的 index 做更新，不使用 .map() 覆寫全陣列
+  targetIndexes.forEach((index) => {
+    const currentRow = rows.value[index];
+    if (!currentRow) return;
+    const nextRow = updateStockRow(currentRow);
 
-    return nextRow;
+    // 直接修改該列資料，Vue 會自動觸發這列的 UI 重新渲染
+    rows.value[index] = nextRow;
+    currentTickUpdatedIds.push(nextRow.id);
   });
 
-  updatedRowIds.value = nextUpdatedRowIds;
+  // 針對這次有更新的股票，逐一進行「獨立高亮控制」
+  currentTickUpdatedIds.forEach((id) => {
+    updatedRowIds.value.add(id);
 
-  window.setTimeout(() => {
-    updatedRowIds.value = new Set();
-  }, 600);
+    // 如果這隻股票目前本來就正在亮，拆掉舊炸彈！不要讓它提早熄滅
+    if (rowClearTimers.has(id)) {
+      window.clearTimeout(rowClearTimers.get(id));
+    }
+
+    // 重新設定一個專屬於這隻股票的 0.6 秒新炸彈
+    const timerId = window.setTimeout(() => {
+      updatedRowIds.value.delete(id); // 時間到，只熄滅自己
+      rowClearTimers.delete(id); // 把計時器從記錄中刪除
+    }, 600);
+
+    // 把新炸彈記錄到地圖裡
+    rowClearTimers.set(id, timerId);
+  });
 };
 
+/**
+ * [AI輔助] 建立不規則的遞迴排程，模擬真實股市成交頻率
+ *
+ * - 做了什麼事情：
+ *   使用 `window.setTimeout` 註冊一個定時器，隨機等待 300ms 到 1000ms（0.3秒到1秒）。
+ *   時間截止時執行更新，並再次呼叫自己。
+ * - 完成了什麼事情：
+ *   打造出一個無限循環且間隔隨機的引擎，模擬股市時快時慢的跳動節奏。
+ */
 const scheduleNextTick = () => {
   tickTimer = window.setTimeout(() => {
     runTick();
@@ -126,9 +134,13 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  // 1. 關閉持續更新的主引擎
   if (tickTimer !== undefined) {
     window.clearTimeout(tickTimer);
   }
+  // 2. 徹底拆除所有還在倒數的高亮計時器，避免離開頁面時發生 Memory Leak
+  rowClearTimers.forEach((timerId) => window.clearTimeout(timerId));
+  rowClearTimers.clear();
 });
 
 const getValueToneClass = (row: StockRow, colKey: Col["key"]): string => {
@@ -156,6 +168,33 @@ const formatCell = (
     case "symbol":
       return row.symbol;
   }
+};
+
+/**
+ * [AI輔助] 計算並生成單一股票的最新隨機市場資料
+ *
+ * - 做了什麼事情：
+ *   計算隨機價格漲跌，重新計算金額、百分比、成交量，並維護 20 筆歷史 trend 資料。
+ * - 完成了什麼事情：
+ *   回傳一個結構完整、附帶當前時間戳記的全新 StockRow 物件。
+ */
+const updateStockRow = (row: StockRow): StockRow => {
+  const previousPrice = row.price;
+  const priceDelta = randomFloat(-1.5, 1.5);
+  const nextPrice = Math.max(0.01, previousPrice + priceDelta);
+  const change = nextPrice - previousPrice;
+  const changePct = (change / previousPrice) * 100;
+  const trend = [...row.trend, nextPrice].slice(-20);
+
+  return {
+    ...row,
+    price: nextPrice,
+    change,
+    changePct,
+    volume: row.volume + randomInt(1_000, 80_000),
+    trend,
+    updatedAt: Date.now(),
+  };
 };
 </script>
 

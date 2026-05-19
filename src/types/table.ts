@@ -9,3 +9,14 @@ export interface SortState {
   key: Exclude<Col["key"], "trend">;
   direction: "asc" | "desc";
 }
+
+export type QuetoryResponse = {
+  c: number; // Current price
+  d: number; // Change
+  dp: number; // Percent change
+  h: number; // High price of the day
+  l: number; // Low price of the day
+  o: number; // Open price of the day
+  pc: number; // Previous close price
+  t: number; // Timestamp
+};

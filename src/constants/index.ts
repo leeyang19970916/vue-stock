@@ -7,6 +7,7 @@ export const SORT_STATE: SortState = {
   key: "symbol",
   direction: "asc",
 };
+export const TARGET_PRICE = 190;
 
 export const MOCK_SYMBOLS = [
   "AAPL",
@@ -145,3 +146,6 @@ export const MOCK_ROWS: StockRow[] = [
     updatedAt: initialUpdatedAt,
   },
 ];
+
+export const API_DOMAIN = "https://finnhub.io";
+export const TOKEN = `d85dbthr01qke7mc1cc0d85dbthr01qke7mc1ccg`;

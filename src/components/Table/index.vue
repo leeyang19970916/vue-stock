@@ -1,6 +1,14 @@
 <script setup lang="ts">
-import { MOCK_ROWS, SORT_STATE } from "@/constants";
+import {
+  MOCK_SYMBOLS,
+  MOCK_ROWS,
+  SORT_STATE,
+  TARGET_PRICE,
+  API_DOMAIN,
+  TOKEN,
+} from "@/constants";
 import type { StockRow } from "@/types";
+import type { QuetoryResponse } from "@/types/table";
 import type { SearchForm } from "@/types/filter";
 import { getLineStyle } from "@/utils/getLineStyle";
 import { computed, onMounted, onUnmounted, ref } from "vue";
@@ -8,6 +16,11 @@ import { randomFloat, randomInt, getRandomRowIndexes } from "@/utils/random";
 import TheadLabel from "@/components/Table/TheadLabel.vue";
 import type { Col, SortState } from "@/types/table";
 import Sparkline from "./Sparkline.vue";
+import { useAlertStore } from "@/store/AlertsStore";
+// ESM / Typescript
+import { ofetch } from "ofetch";
+// import dayjs from "dayjs";
+// import { get } from "http";
 
 const props = defineProps<{
   searchForm: SearchForm;
@@ -25,6 +38,7 @@ const COLS: Col[] = [
   { label: "Volume", key: "volume", sortable: true },
   { label: "Trend", key: "trend", sortable: false },
 ];
+const alertStore = useAlertStore();
 
 const rows = ref<StockRow[]>([...MOCK_ROWS]);
 const sortState = ref<SortState>(SORT_STATE);
@@ -91,6 +105,9 @@ const runTick = () => {
     // 直接修改該列資料，Vue 會自動觸發這列的 UI 重新渲染
     rows.value[index] = nextRow;
     currentTickUpdatedIds.push(nextRow.id);
+    // if (nextRow.price > TARGET_PRICE) {
+    //   alertStore.show(nextRow);
+    // }
   });
 
   // 針對這次有更新的股票，逐一進行「獨立高亮控制」
@@ -131,9 +148,52 @@ const scheduleNextTick = () => {
     randomInt(300, 1_000),
   );
 };
+const fetchData = async (symbol: (typeof MOCK_SYMBOLS)[number]) => {
+  try {
+    // const url = `${API_BASE}/quote?symbol=${encodeURIComponent(currentSymbol.value)}&token=${encodeURIComponent(token.value)}`;
+    const url = `${API_DOMAIN}/api/v1/quote`;
+    const data = await ofetch<QuetoryResponse>(url, {
+      method: "GET",
+      // headers: {
+      //   "X-Finnhub-Token ": `${encodeURIComponent(TOKEN)}`,
+      // },
+      query: {
+        symbol,
+        token: TOKEN,
+      },
+    });
+    const index = rows.value.findIndex((i) => i.symbol === symbol);
+    if (rows.value[index]) {
+      rows.value[index] = {
+        ...rows.value[index],
+        price: data.c,
+        change: data.d,
+        changePct: data.dp,
+        updatedAt: data.t,
+        trend: [...rows.value[index].trend, data.c].slice(-20),
+      };
+    }
+  } catch (error) {
+    console.error("API 請求失敗:", error);
+  }
+};
 
-onMounted(() => {
-  scheduleNextTick();
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+onMounted(async () => {
+  // scheduleNextTick();
+  for (const symbol of MOCK_SYMBOLS) {
+    await fetchData(symbol);
+    await delay(1000);
+  }
+
+  tickTimer = window.setInterval(() => {
+    getRandomRowIndexes(rows.value.length, randomInt(1, 4)).forEach((index) => {
+      const symbol = rows.value[index]?.symbol;
+      if (symbol) {
+        fetchData(symbol);
+      }
+    });
+  }, 5000);
 });
 
 onUnmounted(() => {

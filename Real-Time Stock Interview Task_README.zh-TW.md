@@ -137,3 +137,39 @@ const MOCK_ROWS = [
 ];
 ```ㄋ
 ````
+
+# 即時股價題目：延伸考題（30 分鐘版）
+
+### 題目 1：價格警示小工具（不串 API）
+
+請在現有 `stockTrading` 專案新增「價格警示」功能（使用既有 mock 資料即可）。
+
+- 功能需求：
+  - 可輸入一組警示條件：`symbol` + `targetPrice`
+  - 當最新價 `>= targetPrice` 時顯示提示訊息（例如：`AAPL hit 190`）
+  - 每檔股票只提示一次，避免重複跳通知
+  - 可清除全部警示
+- 驗收重點：
+  - 警示條件需放在 store 或可追蹤狀態中管理
+  - 畫面重新渲染時，已觸發過的警示不應重複觸發
+
+---
+
+### 題目 2：單一股票報價卡（REST + Polling）
+
+請做一個單一股票報價卡，使用 Finnhub REST。
+
+- API 文件：https://finnhub.io/docs/api
+- TOKEN: `d85dbthr01qke7mc1cc0d85dbthr01qke7mc1ccg`
+
+- 功能需求：
+  - 可輸入股票代號（例如 `AAPL`）
+  - 用 `GET /quote` 取得初始報價
+  - 每 5 秒 polling 一次更新價格
+  - 顯示最新價、漲跌、漲跌幅
+  - 請有基本錯誤提示
+- 驗收重點：
+  - 切換代號時要清除舊的 polling timer
+  - 畫面可以持續更新
+
+---

@@ -30,6 +30,18 @@ defineOptions({
   name: "StockTable",
 });
 
+const currentQuote = ref<{
+  symbolInput: string | undefined;
+  isLoading: boolean;
+  errorMsg: string;
+  row: StockRow | undefined;
+}>({
+  symbolInput: undefined,
+  isLoading: false,
+  errorMsg: "",
+  row: undefined,
+});
+
 const COLS: Col[] = [
   { label: "Symbol", key: "symbol", sortable: true },
   { label: "Price", key: "price", sortable: true },
@@ -105,9 +117,9 @@ const runTick = () => {
     // 直接修改該列資料，Vue 會自動觸發這列的 UI 重新渲染
     rows.value[index] = nextRow;
     currentTickUpdatedIds.push(nextRow.id);
-    // if (nextRow.price > TARGET_PRICE) {
-    //   alertStore.show(nextRow);
-    // }
+    if (nextRow.price > TARGET_PRICE) {
+      alertStore.show(nextRow);
+    }
   });
 
   // 針對這次有更新的股票，逐一進行「獨立高亮控制」
@@ -150,6 +162,8 @@ const scheduleNextTick = () => {
 };
 const fetchData = async (symbol: (typeof MOCK_SYMBOLS)[number]) => {
   try {
+    currentQuote.value.isLoading = true;
+    currentQuote.value.errorMsg = "";
     // const url = `${API_BASE}/quote?symbol=${encodeURIComponent(currentSymbol.value)}&token=${encodeURIComponent(token.value)}`;
     const url = `${API_DOMAIN}/api/v1/quote`;
     const data = await ofetch<QuetoryResponse>(url, {
@@ -163,6 +177,9 @@ const fetchData = async (symbol: (typeof MOCK_SYMBOLS)[number]) => {
       },
     });
     const index = rows.value.findIndex((i) => i.symbol === symbol);
+    if (index === -1) {
+      throw new Error();
+    }
     if (rows.value[index]) {
       rows.value[index] = {
         ...rows.value[index],
@@ -173,27 +190,24 @@ const fetchData = async (symbol: (typeof MOCK_SYMBOLS)[number]) => {
         trend: [...rows.value[index].trend, data.c].slice(-20),
       };
     }
+    currentQuote.value.row = rows.value[index];
   } catch (error) {
     console.error("API 請求失敗:", error);
+    currentQuote.value.errorMsg = "無法取得資料，請稍後再試。";
+    currentQuote.value.row = undefined;
+  } finally {
+    currentQuote.value.isLoading = false;
   }
 };
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-onMounted(async () => {
-  // scheduleNextTick();
-  for (const symbol of MOCK_SYMBOLS) {
-    await fetchData(symbol);
-    await delay(1000);
+setInterval(() => {
+  if (currentQuote.value.row) {
+    const symbol = currentQuote.value.row.symbol;
+    fetchData(symbol);
   }
+}, 5000);
 
-  tickTimer = window.setInterval(() => {
-    getRandomRowIndexes(rows.value.length, randomInt(1, 4)).forEach((index) => {
-      const symbol = rows.value[index]?.symbol;
-      if (symbol) {
-        fetchData(symbol);
-      }
-    });
-  }, 5000);
+onMounted(async () => {
+  scheduleNextTick();
 });
 
 onUnmounted(() => {
@@ -262,38 +276,112 @@ const updateStockRow = (row: StockRow): StockRow => {
 </script>
 
 <template>
-  <table>
-    <thead>
-      <tr>
-        <th v-for="col in COLS" :key="col.key" scope="col">
-          <TheadLabel :col v-model="sortState" />
-        </th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr
-        v-for="row in sortedRows"
-        :key="row.id"
-        :class="{ 'is-updated': updatedRowIds.has(row.id) }"
+  <div>
+    <div class="input-container">
+      <input
+        class="symbol-input"
+        type="text"
+        v-model="currentQuote.symbolInput"
+        placeholder="輸入股票代碼"
+        @keyup.enter="
+          () => {
+            const val =
+              currentQuote.symbolInput as (typeof MOCK_SYMBOLS)[number];
+
+            fetchData(val);
+          }
+        "
+      />
+      <button
+        @click="
+          () => {
+            const val =
+              currentQuote.symbolInput as (typeof MOCK_SYMBOLS)[number];
+
+            fetchData(val);
+          }
+        "
+        :disabled="currentQuote.isLoading"
       >
-        <td
-          v-for="col in COLS"
-          :key="col.key"
-          :class="getValueToneClass(row, col.key)"
+        查詢
+      </button>
+    </div>
+    <div
+      v-if="currentQuote.errorMsg"
+      style="color: var(--color-stock-negative); margin-bottom: 16px"
+    >
+      {{ currentQuote.errorMsg }}
+    </div>
+    <div v-if="currentQuote.row">
+      <strong>最新查詢：</strong>
+      <div>股票名稱：{{ currentQuote.row.symbol }}</div>
+      <div>最新價格：${{ currentQuote.row.price.toFixed(2) }}</div>
+      <div>漲跌金額：${{ currentQuote.row.change.toFixed(2) }}</div>
+      <div>漲跌幅度：{{ currentQuote.row.changePct.toFixed(2) }}%</div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th v-for="col in COLS" :key="col.key" scope="col">
+            <TheadLabel :col v-model="sortState" />
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr
+          v-for="row in sortedRows"
+          :key="row.id"
+          :class="{ 'is-updated': updatedRowIds.has(row.id) }"
         >
-          <template v-if="col.key === 'trend'">
-            <Sparkline :row />
-          </template>
-          <template v-else>
-            {{ formatCell(row, col.key) }}
-          </template>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+          <td
+            v-for="col in COLS"
+            :key="col.key"
+            :class="getValueToneClass(row, col.key)"
+          >
+            <template v-if="col.key === 'trend'">
+              <Sparkline :row />
+            </template>
+            <template v-else>
+              {{ formatCell(row, col.key) }}
+            </template>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </template>
 
 <style lang="scss" scoped>
+.input-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+
+  margin-bottom: 16px;
+  .symbol-input {
+    display: block;
+    padding: 8px 12px;
+    width: 200px;
+    color: var(--color-stock-neutral);
+    background: rgb(var(--color-stock-background-rgb) / 72%);
+    border: 1px solid rgb(var(--color-stock-header-rgb) / 18%);
+    border-radius: 4px;
+  }
+  button {
+    width: auto;
+    padding: 8px 16px;
+    color: var(--color-stock-neutral);
+    background: rgb(var(--color-stock-background-rgb) / 72%);
+    border-radius: 4px;
+    cursor: pointer;
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+}
+
 table {
   width: 100%;
   overflow: hidden;

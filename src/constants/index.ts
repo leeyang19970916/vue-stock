@@ -7,7 +7,7 @@ export const SORT_STATE: SortState = {
   key: "symbol",
   direction: "asc",
 };
-export const TARGET_PRICE = 190;
+export const TARGET_PRICE = 500;
 
 export const MOCK_SYMBOLS = [
   "AAPL",
